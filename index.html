@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="hu">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vizsga Jelentkezés</title>
+    <!-- MSAL.js for Authentication -->
+    <script src="https://alcdn.msauth.net/browser/2.35.0/js/msal-browser.min.js"></script>
+    <!-- Firebase App and Realtime Database -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg-glass: rgba(255, 255, 255, 0.85);
+            --bg-glass-dark: rgba(255, 255, 255, 0.95);
+            --border-glass: rgba(255, 255, 255, 0.3);
+            --text-main: #1f2937;
+            --text-muted: #6b7280;
+            --success: #10b981;
+            --error: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: start;
+            padding: 2rem 1rem;
+            color: var(--text-main);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background: var(--bg-glass);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-glass);
+            border-radius: 1.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            padding: 2.5rem;
+            min-height: 400px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+            padding-bottom: 1.5rem;
+        }
+
+        h1 {
+            font-size: 1.75rem;
+            font-weight: 800;
+            background: linear-gradient(to right, #4338ca, #7c3aed);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        button {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.75rem;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn-login {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-login:hover {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn-logout {
+            background: transparent;
+            border: 1px solid var(--text-muted);
+            color: var(--text-muted);
+        }
+
+        .btn-logout:hover {
+            background: rgba(0, 0, 0, 0.05);
+        }
+
+        .btn-action {
+            width: 100%;
+            margin-top: 0.5rem;
+        }
+
+        .btn-select {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-cancel {
+            background: var(--error);
+            color: white;
+        }
+
+        .loading-overlay {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 4rem;
+        }
+
+        .spinner {
+            width: 3rem;
+            height: 3rem;
+            border: 4px solid rgba(79, 70, 229, 0.1);
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 1rem;
+        }
+
+        @keyframes spin {
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .slots-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+
+        .slot-card {
+            background: white;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            border: 1px solid #e5e7eb;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .slot-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        .slot-card.taken {
+            opacity: 0.7;
+            background: #f3f4f6;
+        }
+
+        .slot-card.mine {
+            border: 2px solid var(--primary);
+            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+        }
+
+        .slot-time {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .slot-date {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .slot-status {
+            margin-top: 1rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .teacher-view .slot-card {
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            border-radius: 0.5rem;
+            padding: 1rem;
+        }
+
+        .teacher-view .slots-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .student-name {
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .alert {
+            padding: 1rem;
+            border-radius: 0.75rem;
+            margin-bottom: 1.5rem;
+            font-weight: 500;
+        }
+
+        .alert-info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #bfdbfe;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <header id="header">
+            <h1>Vizsga Jelentkezés</h1>
+            <div id="auth-section">
+                <button class="btn-login" onclick="login()">Bejelentkezés</button>
+            </div>
+        </header>
+
+        <!-- Loading State -->
+        <div id="loading" class="loading-overlay hidden">
+            <div class="spinner"></div>
+            <p>Betöltés...</p>
+        </div>
+
+        <!-- Main Views -->
+        <main id="main-content" class="hidden">
+            <div id="teacher-alert" class="alert alert-info hidden">
+                <strong>Tanári nézet:</strong> Te vagy a rendszergazda (Nádori Gergely).
+            </div>
+
+            <div id="student-summary" class="alert alert-info hidden">
+                Szia <span id="display-name"></span>! <br>
+                <span id="my-booking-info">Még nem választottál időpontot.</span>
+            </div>
+
+            <div id="slots-container" class="slots-grid">
+                <!-- Slots will be injected here -->
+            </div>
+        </main>
+
+        <!-- Logic -->
+        <script>
+            // --- CONFIGURATION (FILL THESE IN) ---
+            const msalConfig = {
+                auth: {
+                    clientId: "fcd65ec4-4b1f-4718-a531-95ebe22cd17b",
+                    authority: "https://login.microsoftonline.com/common",
+                    redirectUri: window.location.origin + window.location.pathname
+                }
+            };
+
+            const firebaseConfig = {
+                apiKey: "AIzaSyDXT5TjmDOU_IL7Js1lS4ayH7LsWsFOIEE",
+                authDomain: "vizsgaidopont-25929.firebaseapp.com",
+                databaseURL: "https://vizsgaidopont-25929-default-rtdb.firebaseio.com",
+                projectId: "vizsgaidopont-25929",
+                storageBucket: "vizsgaidopont-25929.firebasestorage.app",
+                messagingSenderId: "413750723301",
+                appId: "1:413750723301:web:efba53e337ea4e91600a0c",
+                measurementId: "G-3XVCB0L0JM"
+            };
+            // -------------------------------------
+
+            const TEACHER_NAME = "Nádori Gergely";
+            const msalInstance = new msal.PublicClientApplication(msalConfig);
+            firebase.initializeApp(firebaseConfig);
+            const db = firebase.database();
+
+            let currentUser = null;
+            let examSlots = [];
+            let registrations = {};
+
+            // INITIALIZE
+            async function init() {
+                showLoading(true);
+                try {
+                    const response = await msalInstance.handleRedirectPromise();
+                    if (response) {
+                        currentUser = response.account;
+                    } else {
+                        const accounts = msalInstance.getAllAccounts();
+                        if (accounts.length > 0) currentUser = accounts[0];
+                    }
+
+                    if (currentUser) {
+                        updateUIForLoggedIn();
+                        await loadData();
+                    } else {
+                        updateUIForLoggedOut();
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert("Hiba a bejelentkezéskor: " + err.message);
+                }
+                showLoading(false);
+            }
+
+            async function login() {
+                await msalInstance.loginRedirect({ scopes: ["user.read"] });
+            }
+
+            function logout() {
+                msalInstance.logoutRedirect();
+            }
+
+            function showLoading(show) {
+                document.getElementById('loading').classList.toggle('hidden', !show);
+                document.getElementById('main-content').classList.toggle('hidden', show);
+            }
+
+            function updateUIForLoggedIn() {
+                const authSection = document.getElementById('auth-section');
+                authSection.innerHTML = `
+                <div class="user-info">
+                    <span>${currentUser.name}</span>
+                    <button class="btn-logout" onclick="logout()">Kijelentkezés</button>
+                </div>
+            `;
+                document.getElementById('display-name').textContent = currentUser.name;
+            }
+
+            function updateUIForLoggedOut() {
+                document.getElementById('main-content').classList.add('hidden');
+            }
+
+            async function loadData() {
+                try {
+                    // 1. Load CSV
+                    const csvResponse = await fetch('barka_idopont.csv');
+                    if (!csvResponse.ok) throw new Error("Nem sikerült betölteni az idopont.csv fájlt.");
+                    const csvText = await csvResponse.text();
+                    parseCSV(csvText);
+
+                    // 2. Listen to Firebase
+                    db.ref('registrations').on('value', (snapshot) => {
+                        registrations = snapshot.val() || {};
+                        renderSlots();
+                    });
+                } catch (err) {
+                    alert(err.message);
+                }
+            }
+
+            function parseCSV(text) {
+                const lines = text.trim().split('\n');
+                const header = lines[0].split(';'); // Hónap;Nap;Óra;Perc
+
+                examSlots = lines.slice(1).map((line, idx) => {
+                    const parts = line.split(';');
+                    return {
+                        id: `slot_${idx}`,
+                        month: parts[0],
+                        day: parts[1],
+                        hour: parts[2],
+                        minute: parts[3].trim()
+                    };
+                });
+            }
+
+            function renderSlots() {
+                const container = document.getElementById('slots-container');
+                const teacherAlert = document.getElementById('teacher-alert');
+                const studentSummary = document.getElementById('student-summary');
+                const isTeacher = currentUser.name === TEACHER_NAME;
+
+                container.innerHTML = '';
+                teacherAlert.classList.toggle('hidden', !isTeacher);
+                studentSummary.classList.toggle('hidden', isTeacher);
+
+                if (isTeacher) {
+                    document.getElementById('main-content').classList.add('teacher-view');
+                }
+
+                let myBooking = null;
+
+                examSlots.forEach(slot => {
+                    const registrant = registrations[slot.id];
+                    const isTaken = !!registrant;
+                    const isMine = registrant && registrant.uid === currentUser.localAccountId;
+
+                    if (isMine) myBooking = slot;
+
+                    const card = document.createElement('div');
+                    card.className = `slot-card ${isTaken ? 'taken' : ''} ${isMine ? 'mine' : ''}`;
+
+                    let actionHtml = '';
+                    if (isTeacher) {
+                        actionHtml = `<div class="student-name">${registrant ? registrant.name : '-'}</div>`;
+                    } else if (isMine) {
+                        actionHtml = `<button class="btn-cancel btn-action" onclick="toggleBooking('${slot.id}', true)">Törlés</button>`;
+                    } else if (!isTaken) {
+                        // Only allow booking if user doesn't have one yet
+                        if (!myBooking) {
+                            actionHtml = `<button class="btn-select btn-action" onclick="toggleBooking('${slot.id}', false)">Jelentkezés</button>`;
+                        } else {
+                            actionHtml = `<div class="slot-status">Szabad</div>`;
+                        }
+                    } else {
+                        actionHtml = `<div class="slot-status">Foglalt</div>`;
+                    }
+
+                    card.innerHTML = `
+                    <div>
+                        <div class="slot-time">${slot.hour}:${slot.minute.padStart(2, '0')}</div>
+                        <div class="slot-date">${slot.month} ${slot.day}.</div>
+                    </div>
+                    ${actionHtml}
+                `;
+                    container.appendChild(card);
+                });
+
+                if (!isTeacher) {
+                    const info = document.getElementById('my-booking-info');
+                    if (myBooking) {
+                        info.innerHTML = `Választott időpontod: <strong>${myBooking.month} ${myBooking.day}. ${myBooking.hour}:${myBooking.minute.padStart(2, '0')}</strong>`;
+                    } else {
+                        info.textContent = "Még nem választottál időpontot. Kattints a jelentkezés gombra egy szabad sávnál!";
+                    }
+                }
+            }
+
+            async function toggleBooking(slotId, isCancel) {
+                if (isCancel) {
+                    if (confirm("Biztosan törlöd a jelentkezést?")) {
+                        await db.ref(`registrations/${slotId}`).remove();
+                    }
+                } else {
+                    // Check again to be safe
+                    const snapshot = await db.ref(`registrations/${slotId}`).get();
+                    if (snapshot.exists()) {
+                        alert("Sajnos ezt az időpontot épp most foglalták le.");
+                        return;
+                    }
+
+                    // Also check if user already has a booking (double safety)
+                    const all = (await db.ref('registrations').get()).val() || {};
+                    const alreadyHas = Object.values(all).find(r => r.uid === currentUser.localAccountId);
+                    if (alreadyHas) {
+                        alert("Csak egy időpontra jelentkezhetsz!");
+                        return;
+                    }
+
+                    await db.ref(`registrations/${slotId}`).set({
+                        uid: currentUser.localAccountId,
+                        name: currentUser.name,
+                        timestamp: Date.now()
+                    });
+                }
+            }
+
+            init();
+        </script>
+</body>
+
+</html>
