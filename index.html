@@ -270,12 +270,20 @@
 
         <!-- Logic -->
         <script>
-            // --- CONFIGURATION (FILL THESE IN) ---
+            // --- LOGGING ---
+            console.log("Oldal betöltve. URL:", window.location.href);
+            console.log("Redirect URI:", window.location.origin + window.location.pathname);
+
+            // --- CONFIGURATION ---
             const msalConfig = {
                 auth: {
                     clientId: "fcd65ec4-4b1f-4718-a531-95ebe22cd17b",
                     authority: "https://login.microsoftonline.com/fb6ed267-0587-4bca-8f76-c672df6eb313/v2.0",
                     redirectUri: window.location.origin + window.location.pathname
+                },
+                cache: {
+                    cacheLocation: "localStorage",
+                    storeAuthStateInCookie: true
                 }
             };
 
@@ -289,44 +297,74 @@
                 appId: "1:413750723301:web:efba53e337ea4e91600a0c",
                 measurementId: "G-3XVCB0L0JM"
             };
-            // -------------------------------------
 
             const TEACHER_NAME = "Nádori Gergely";
-            const msalInstance = new msal.PublicClientApplication(msalConfig);
-            firebase.initializeApp(firebaseConfig);
-            const db = firebase.database();
+            let msalInstance;
+            let db;
 
-            let currentUser = null;
-            let examSlots = [];
-            let registrations = {};
-
-            // INITIALIZE
+            // --- INITIALIZE ---
             async function init() {
-                showLoading(true);
+                console.log("Init indítása...");
+
+                // Verifying libraries
+                if (typeof msal === 'undefined') {
+                    console.error("Hiba: MSAL könyvtár nem töltődött be!");
+                    alert("Hiba: A Microsoft bejelentkezési modult nem sikerült betölteni. Kérlek frissítsd az oldalt!");
+                    return;
+                }
+                if (typeof firebase === 'undefined') {
+                    console.error("Hiba: Firebase könyvtár nem töltődött be!");
+                    return;
+                }
+
                 try {
+                    msalInstance = new msal.PublicClientApplication(msalConfig);
+                    firebase.initializeApp(firebaseConfig);
+                    db = firebase.database();
+                    console.log("Könyvtárak inicializálva.");
+
+                    showLoading(true);
+
                     const response = await msalInstance.handleRedirectPromise();
+                    console.log("MSAL HandleRedirect válasz:", response);
+
                     if (response) {
                         currentUser = response.account;
+                        console.log("Bejelentkezett fiók (redirectből):", currentUser.name);
                     } else {
                         const accounts = msalInstance.getAllAccounts();
-                        if (accounts.length > 0) currentUser = accounts[0];
+                        if (accounts.length > 0) {
+                            currentUser = accounts[0];
+                            console.log("Bejelentkezett fiók (cache-ből):", currentUser.name);
+                        }
                     }
 
                     if (currentUser) {
                         updateUIForLoggedIn();
                         await loadData();
                     } else {
+                        console.log("Nincs bejelentkezett felhasználó.");
                         updateUIForLoggedOut();
                     }
                 } catch (err) {
-                    console.error(err);
-                    alert("Hiba a bejelentkezéskor: " + err.message);
+                    console.error("Kritikus hiba az inicializáláskor:", err);
+                    alert("Hiba: " + err.message);
+                } finally {
+                    showLoading(false);
                 }
-                showLoading(false);
             }
 
             async function login() {
-                await msalInstance.loginRedirect({ scopes: ["user.read"] });
+                try {
+                    console.log("Bejelentkezés indítása...");
+                    await msalInstance.loginRedirect({
+                        scopes: ["user.read"],
+                        prompt: "select_account"
+                    });
+                } catch (err) {
+                    console.error("Bejelentkezési hiba:", err);
+                    alert("Bejelentkezési hiba: " + err.message);
+                }
             }
 
             function logout() {
