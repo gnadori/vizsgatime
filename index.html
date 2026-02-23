@@ -400,7 +400,11 @@
                     // 1. Load CSV
                     const csvResponse = await fetch('barka_idopont.csv');
                     if (!csvResponse.ok) throw new Error("Nem sikerült betölteni az idopont.csv fájlt.");
-                    const csvText = await csvResponse.text();
+
+                    const arrayBuffer = await csvResponse.arrayBuffer();
+                    const decoder = new TextDecoder('windows-1250');
+                    const csvText = decoder.decode(arrayBuffer);
+
                     parseCSV(csvText);
 
                     // 2. Listen to Firebase
