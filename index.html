@@ -32,12 +32,16 @@
 
         body {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: start;
             padding: 2rem 1rem;
             color: var(--text-main);
+            transition: background-image 1s ease-in-out;
         }
 
         .container {
@@ -327,6 +331,8 @@
                     db = firebase.database();
                     console.log("Könyvtárak inicializálva.");
 
+                    fetchRandomBackground();
+
                     showLoading(true);
 
                     const response = await msalInstance.handleRedirectPromise();
@@ -530,6 +536,40 @@
                         name: currentUser.name,
                         timestamp: Date.now()
                     });
+                }
+            }
+
+            async function fetchRandomBackground() {
+                try {
+                    // 1. Get list of images from the gallery page
+                    const listUrl = "https://commons.wikimedia.org/w/api.php?action=query&titles=Gray%27s_Anatomy_plates&prop=images&imlimit=max&format=json&origin=*";
+                    const listResponse = await fetch(listUrl);
+                    const listData = await listResponse.json();
+
+                    const pages = listData.query.pages;
+                    const pageId = Object.keys(pages)[0];
+                    const images = pages[pageId].images;
+
+                    if (!images || images.length === 0) return;
+
+                    // 2. Pick a random image title
+                    const randomImage = images[Math.floor(Math.random() * images.length)];
+                    const imageTitle = randomImage.title;
+
+                    // 3. Get the direct URL for that image
+                    const infoUrl = `https://commons.wikimedia.org/w/api.php?action=query&titles=${encodeURIComponent(imageTitle)}&prop=imageinfo&iiprop=url&format=json&origin=*`;
+                    const infoResponse = await fetch(infoUrl);
+                    const infoData = await infoResponse.json();
+
+                    const infoPages = infoData.query.pages;
+                    const infoPageId = Object.keys(infoPages)[0];
+                    const imageUrl = infoPages[infoPageId].imageinfo[0].url;
+
+                    // 4. Update background with overlay
+                    document.body.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url('${imageUrl}')`;
+                    console.log("Háttérkép beállítva:", imageUrl);
+                } catch (err) {
+                    console.error("Hiba a háttérkép betöltésekor:", err);
                 }
             }
 
