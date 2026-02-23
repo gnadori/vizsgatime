@@ -255,7 +255,8 @@
         <!-- Main Views -->
         <main id="main-content" class="hidden">
             <div id="teacher-alert" class="alert alert-info hidden">
-                <strong>Tanári nézet:</strong> Te vagy a rendszergazda (Nádori Gergely).
+                <strong>Tanári nézet:</strong> Te vagy a rendszergazda (Nádori Gergely).<br>
+                <span id="teacher-stats"></span>
             </div>
 
             <div id="student-summary" class="alert alert-info hidden">
@@ -443,10 +444,12 @@
                 }
 
                 let myBooking = null;
+                let stats = { total: examSlots.length, taken: 0, free: 0 };
 
                 examSlots.forEach(slot => {
                     const registrant = registrations[slot.id];
                     const isTaken = !!registrant;
+                    if (isTaken) stats.taken++; else stats.free++;
                     const isMine = registrant && registrant.uid === currentUser.localAccountId;
 
                     if (isMine) myBooking = slot;
@@ -456,7 +459,10 @@
 
                     let actionHtml = '';
                     if (isTeacher) {
-                        actionHtml = `<div class="student-name">${registrant ? registrant.name : '-'}</div>`;
+                        actionHtml = `
+                            <div class="student-name">${registrant ? registrant.name : '<span style="color: var(--success); opacity: 0.6;">(Szabad)</span>'}</div>
+                            ${registrant ? `<button class="btn-cancel btn-action" style="width: auto; margin: 0; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="toggleBooking('${slot.id}', true)">Törlés</button>` : ''}
+                        `;
                     } else if (isMine) {
                         actionHtml = `<button class="btn-cancel btn-action" onclick="toggleBooking('${slot.id}', true)">Törlés</button>`;
                     } else if (!isTaken) {
@@ -479,6 +485,10 @@
                 `;
                     container.appendChild(card);
                 });
+
+                if (isTeacher) {
+                    document.getElementById('teacher-stats').innerHTML = `Összesen: <strong>${stats.total}</strong> | Foglalt: <strong>${stats.taken}</strong> | Szabad: <strong>${stats.free}</strong>`;
+                }
 
                 if (!isTeacher) {
                     const info = document.getElementById('my-booking-info');
