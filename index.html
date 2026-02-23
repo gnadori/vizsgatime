@@ -299,7 +299,7 @@
                 measurementId: "G-3XVCB0L0JM"
             };
 
-            const TEACHER_NAME = "Nádori Gergely";
+            const TEACHER_NAMES = ["Nádori Gergely", "Gergely Nádori"];
             let msalInstance;
             let db;
             let currentUser = null;
@@ -433,15 +433,15 @@
                 const container = document.getElementById('slots-container');
                 const teacherAlert = document.getElementById('teacher-alert');
                 const studentSummary = document.getElementById('student-summary');
-                const isTeacher = currentUser.name === TEACHER_NAME;
+                const isTeacher = TEACHER_NAMES.includes(currentUser.name);
+
+                console.log("Render slots. User:", currentUser.name, "isTeacher:", isTeacher, "Slots:", examSlots.length);
 
                 container.innerHTML = '';
                 teacherAlert.classList.toggle('hidden', !isTeacher);
                 studentSummary.classList.toggle('hidden', isTeacher);
 
-                if (isTeacher) {
-                    document.getElementById('main-content').classList.add('teacher-view');
-                }
+                document.getElementById('main-content').classList.toggle('teacher-view', isTeacher);
 
                 let myBooking = null;
                 let stats = { total: examSlots.length, taken: 0, free: 0 };
