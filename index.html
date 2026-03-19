@@ -259,8 +259,15 @@
         <!-- Main Views -->
         <main id="main-content" class="hidden">
             <div id="teacher-alert" class="alert alert-info hidden">
-                <strong>Tanári nézet:</strong> Te vagy a rendszergazda (Nádori Gergely).<br>
+                <strong>Tanári nézet:</strong> Te vagy a rendszergazda (<span id="admin-name"></span>).<br>
                 <span id="teacher-stats"></span>
+                <div style="margin-top: 1rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                    <button class="btn-cancel" onclick="deleteAllRegistrations()">Minden jelentkezés törlése</button>
+                    <div>
+                        <label for="csv-upload" style="font-weight: 600; font-size: 0.9rem;">Új időpontok CSV feltöltése (Hónap;Nap;Óra;Perc):</label><br>
+                        <input type="file" id="csv-upload" accept=".csv" onchange="uploadCSV(event)" style="margin-top: 0.5rem;">
+                    </div>
+                </div>
             </div>
 
             <div id="student-summary" class="alert alert-info hidden">
@@ -403,23 +410,84 @@
 
             async function loadData() {
                 try {
-                    // 1. Load CSV
-                    const csvResponse = await fetch('barka_idopont.csv');
-                    if (!csvResponse.ok) throw new Error("Nem sikerült betölteni az idopont.csv fájlt.");
+                    // 1. Listen to slots from Firebase Database
+                    db.ref('slots').on('value', async (snapshot) => {
+                        if (snapshot.exists()) {
+                            // Convert object to array just in case firebase serialized it as array-like object
+                            let data = snapshot.val() || [];
+                            if (!Array.isArray(data) && typeof data === 'object') {
+                                data = Object.values(data);
+                            }
+                            examSlots = data || [];
+                            renderSlots();
+                        } else {
+                            // Fallback CSV fetch if Firebase slots are empty
+                            try {
+                                const csvResponse = await fetch('barka_idopont.csv');
+                                if (csvResponse.ok) {
+                                    const arrayBuffer = await csvResponse.arrayBuffer();
+                                    const decoder = new TextDecoder('windows-1250');
+                                    const csvText = decoder.decode(arrayBuffer);
+                                    parseCSV(csvText);
+                                    renderSlots();
+                                }
+                            } catch (e) {
+                                console.log("Hiba a tartalék CSV megnyitásakor:", e);
+                            }
+                        }
+                    });
 
-                    const arrayBuffer = await csvResponse.arrayBuffer();
-                    const decoder = new TextDecoder('windows-1250');
-                    const csvText = decoder.decode(arrayBuffer);
-
-                    parseCSV(csvText);
-
-                    // 2. Listen to Firebase
+                    // 2. Listen to Firebase registrations
                     db.ref('registrations').on('value', (snapshot) => {
                         registrations = snapshot.val() || {};
                         renderSlots();
                     });
                 } catch (err) {
                     alert(err.message);
+                }
+            }
+
+            function uploadCSV(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = async function(e) {
+                    let text = e.target.result;
+                    parseCSV(text);
+                    
+                    if (confirm("Biztosan feltöltöd az új időpontokat? A régiek törlődnek (de a jelentkezések megmaradnak, hacsak nem törlöd őket külön is!).")) {
+                        try {
+                            // Remove empty slots from array to avoid firebase array serialization quirks
+                            const cleanSlots = examSlots.filter(s => s && s.id);
+                            await db.ref('slots').set(cleanSlots);
+                            alert("Sikeresen feltöltve!");
+                            event.target.value = "";
+                        } catch(err) {
+                            alert("Hiba a feltöltésnél: " + err.message);
+                        }
+                    } else {
+                        event.target.value = "";
+                        // reload from DB to discard local parse
+                        db.ref('slots').once('value').then(s => {
+                            let data = s.val() || [];
+                            if (!Array.isArray(data) && typeof data === 'object') data = Object.values(data);
+                            examSlots = data;
+                            renderSlots();
+                        });
+                    }
+                };
+                reader.readAsText(file, 'windows-1250');
+            }
+
+            async function deleteAllRegistrations() {
+                if(confirm("Biztosan törlöd az ÖSSZES jelentkezést? Ezt nem lehet visszavonni!")) {
+                    try {
+                        await db.ref('registrations').remove();
+                        alert("Minden jelentkezés törölve.");
+                    } catch(err) {
+                        alert("Hiba a törlésnél: " + err.message);
+                    }
                 }
             }
 
@@ -443,11 +511,19 @@
                 const container = document.getElementById('slots-container');
                 const teacherAlert = document.getElementById('teacher-alert');
                 const studentSummary = document.getElementById('student-summary');
-                const isTeacher = TEACHER_NAMES.includes(currentUser.name);
+                
+                // Nádori Gergely / nadori@akgbudapest.onmicrosoft.com = admin
+                const isTeacher = (currentUser.username && currentUser.username.toLowerCase() === "nadori@akgbudapest.onmicrosoft.com") || TEACHER_NAMES.includes(currentUser.name);
 
                 console.log("Render slots. User:", currentUser.name, "isTeacher:", isTeacher, "Slots:", examSlots.length);
 
                 container.innerHTML = '';
+                
+                if (isTeacher) {
+                    const adminNameSpan = document.getElementById('admin-name');
+                    if (adminNameSpan) adminNameSpan.textContent = currentUser.name;
+                }
+                
                 teacherAlert.classList.toggle('hidden', !isTeacher);
                 studentSummary.classList.toggle('hidden', isTeacher);
 
